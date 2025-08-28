@@ -1,5 +1,8 @@
 # MS17-010 (EternalBlue) + nettverksspor — lab
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Lab Only](https://img.shields.io/badge/Scope-Lab%20Only-blue)
+
 Denne laben demonstrerer en helhetlig sikkerhetstest i et **lukket** miljø:
 1) identifikasjon av sårbar **SMBv1 / MS17-010**,  
 2) utnyttelse-flyt (funn → modulvalg → kjøring),  
