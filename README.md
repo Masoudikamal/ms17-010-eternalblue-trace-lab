@@ -57,7 +57,6 @@ set RHOSTS 192.168.x.x
 ![msf banner](images/msfconsole-banner.png)  
 ![msf search](images/msf-search-eternalblue.png)
 
-> *Hvis du har skjermbilde av selve «session opened», kan det legges inn her senere som `images/msf-eb-run-success.png`.*
 
 ---
 
